@@ -31,6 +31,7 @@ import (
 	"github.com/onsi/gomega/types"
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8spoliciesv1 "k8s.io/api/policy/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -168,6 +169,36 @@ func getTestPolicyServerService(policyServerName string) (*corev1.Service, error
 	return &service, nil
 }
 
+func getTestPolicyServerDeployment(policyServerName string) (*appsv1.Deployment, error) {
+	policyServer := policiesv1.PolicyServer{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: policyServerName,
+		},
+	}
+	deploymentName := policyServer.NameWithPrefix()
+
+	deployment := appsv1.Deployment{}
+	if err := reconciler.APIReader.Get(ctx, client.ObjectKey{Name: deploymentName, Namespace: DeploymentsNamespace}, &deployment); err != nil {
+		return nil, errors.Join(errors.New("could not find Deployment owned by PolicyServer"), err)
+	}
+	return &deployment, nil
+}
+
+func getTestPolicyServerPod(policyServerName string) (*corev1.Pod, error) {
+	podList := corev1.PodList{}
+	if err := reconciler.APIReader.List(ctx, &podList, client.MatchingLabels{
+		constants.PolicyServerLabelKey: policyServerName,
+	}); err != nil {
+		return nil, errors.Join(errors.New("could not list Pods owned by PolicyServer"), err)
+	}
+
+	if len(podList.Items) == 0 {
+		return nil, errors.New("could not find Pod owned by PolicyServer")
+	}
+
+	return &podList.Items[0], nil
+}
+
 func getTestValidatingWebhookConfiguration(name string) (*admissionregistrationv1.ValidatingWebhookConfiguration, error) {
 	validatingWebhookConfiguration := admissionregistrationv1.ValidatingWebhookConfiguration{}
 	if err := reconciler.APIReader.Get(ctx, client.ObjectKey{Name: name}, &validatingWebhookConfiguration); err != nil {
@@ -191,37 +222,6 @@ func getTestCASecret() (*corev1.Secret, error) {
 	}
 
 	return &secret, nil
-}
-
-func alreadyExists() types.GomegaMatcher { //nolint:ireturn
-	return WithTransform(
-		func(err error) bool {
-			return err != nil && apierrors.IsAlreadyExists(err)
-		},
-		BeTrue(),
-	)
-}
-
-func haveSucceededOrAlreadyExisted() types.GomegaMatcher { //nolint:ireturn
-	return SatisfyAny(
-		BeNil(),
-		alreadyExists(),
-	)
-}
-
-var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz1234567890")
-
-func randStringRunes(n int) string {
-	b := make([]rune, n)
-	for i := range b {
-		b[i] = letterRunes[rand.Intn(len(letterRunes))] //nolint:gosec
-	}
-
-	return string(b)
-}
-
-func newName(prefix string) string {
-	return fmt.Sprintf("%s-%s", prefix, randStringRunes(8))
 }
 
 func getPolicyServerPodDisruptionBudget(policyServerName string) (*k8spoliciesv1.PodDisruptionBudget, error) {
@@ -266,7 +266,39 @@ func policyServerPodDisruptionBudgetMatcher(policyServer *policiesv1.PolicyServe
 					}),
 					"MatchExpressions": Ignore(),
 				})),
-			})}),
+			}),
+		}),
 		),
 	)
+}
+
+func alreadyExists() types.GomegaMatcher { //nolint:ireturn
+	return WithTransform(
+		func(err error) bool {
+			return err != nil && apierrors.IsAlreadyExists(err)
+		},
+		BeTrue(),
+	)
+}
+
+func haveSucceededOrAlreadyExisted() types.GomegaMatcher { //nolint:ireturn
+	return SatisfyAny(
+		BeNil(),
+		alreadyExists(),
+	)
+}
+
+var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz1234567890")
+
+func randStringRunes(n int) string {
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))] //nolint:gosec
+	}
+
+	return string(b)
+}
+
+func newName(prefix string) string {
+	return fmt.Sprintf("%s-%s", prefix, randStringRunes(8))
 }
