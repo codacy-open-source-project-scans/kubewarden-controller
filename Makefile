@@ -41,7 +41,9 @@ GOLANGCI_LINT_VER := v1.55.2
 GOLANGCI_LINT_BIN := golangci-lint
 GOLANGCI_LINT := $(BIN_DIR)/$(GOLANGCI_LINT_BIN)
 
-TEST_TIMEOUT := 20m
+# Let's use a generous timeout for integration tests because GitHub workers can
+# be slow
+TEST_TIMEOUT := 30m
 
 all: build
 
@@ -119,9 +121,9 @@ unit-tests: manifests generate fmt vet setup-envtest ## Run unit tests.
 integration-tests: manifests generate fmt vet setup-envtest ## Run integration tests.
 	ACK_GINKGO_DEPRECATIONS=2.12.0 K3S_TESTCONTAINER_VERSION="$(K3S_TESTCONTAINER_VERSION)" POLICY_SERVER_VERSION="$(POLICY_SERVER_VERSION)" \
 	go test -v ./controllers/... -ginkgo.v -ginkgo.progress -race -test.v \
-	-ginkgo.randomize-all -ginkgo.timeout=$(TEST_TIMEOUT) \
-	-coverprofile=coverage/integration-tests/coverage-controllers.txt \
-	-covermode=atomic -timeout=$(TEST_TIMEOUT) -coverpkg=all
+		-ginkgo.randomize-all -ginkgo.timeout=$(TEST_TIMEOUT) \
+		-coverprofile=coverage/integration-tests/coverage-controllers.txt \
+		-covermode=atomic -timeout=$(TEST_TIMEOUT) -coverpkg=all
 
 .PHONY: generate-crds
 generate-crds: $(KUSTOMIZE) manifests kustomize ## generate final crds with kustomize. Normally shipped in Helm charts.
