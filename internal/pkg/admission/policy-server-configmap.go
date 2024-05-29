@@ -58,7 +58,7 @@ func (r *Reconciler) reconcilePolicyServerConfigMap(
 			Namespace: r.DeploymentsNamespace,
 		},
 	}
-	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, cfg, func() error {
+	_, err := controllerutil.CreateOrPatch(ctx, r.Client, cfg, func() error {
 		return r.updateConfigMapData(cfg, policyServer, policies)
 	})
 	if err != nil {
@@ -91,7 +91,7 @@ func (r *Reconciler) updateConfigMapData(cfg *corev1.ConfigMap, policyServer *po
 		constants.PolicyServerLabelKey: policyServer.ObjectMeta.Name,
 	}
 	if err := controllerutil.SetOwnerReference(policyServer, cfg, r.Client.Scheme()); err != nil {
-		return errors.Join(fmt.Errorf("failed to set policy server configmap owner reference"), err)
+		return errors.Join(errors.New("failed to set policy server configmap owner reference"), err)
 	}
 	return nil
 }

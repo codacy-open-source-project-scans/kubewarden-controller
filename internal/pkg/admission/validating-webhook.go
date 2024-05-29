@@ -28,7 +28,7 @@ func (r *Reconciler) ReconcileValidatingWebhookConfiguration(
 			Name: policy.GetUniqueName(),
 		},
 	}
-	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, webhook, func() error {
+	_, err := controllerutil.CreateOrPatch(ctx, r.Client, webhook, func() error {
 		admissionPath := filepath.Join("/validate", policy.GetUniqueName())
 		admissionPort := int32(constants.PolicyServerPort)
 
@@ -60,7 +60,7 @@ func (r *Reconciler) ReconcileValidatingWebhookConfiguration(
 		}
 		webhook.Webhooks = []admissionregistrationv1.ValidatingWebhook{
 			{
-				Name: fmt.Sprintf("%s.kubewarden.admission", policy.GetUniqueName()),
+				Name: policy.GetUniqueName() + ".kubewarden.admission",
 				ClientConfig: admissionregistrationv1.WebhookClientConfig{
 					Service:  &service,
 					CABundle: admissionSecret.Data[constants.PolicyServerCARootPemName],
