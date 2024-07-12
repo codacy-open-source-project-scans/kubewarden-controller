@@ -15,7 +15,6 @@ import (
 
 	policiesv1 "github.com/kubewarden/kubewarden-controller/api/policies/v1"
 	"github.com/kubewarden/kubewarden-controller/internal/constants"
-	"github.com/kubewarden/kubewarden-controller/internal/policyserver"
 )
 
 const (
@@ -40,13 +39,6 @@ func (r *PolicyServerReconciler) reconcilePolicyServerDeployment(ctx context.Con
 	configMapVersion, err := r.policyServerConfigMapVersion(ctx, policyServer)
 	if err != nil {
 		return fmt.Errorf("cannot get policy-server ConfigMap version: %w", err)
-	}
-
-	if policyServer.Spec.ImagePullSecret != "" {
-		err = policyserver.ValidateImagePullSecret(ctx, r.Client, policyServer.Spec.ImagePullSecret, r.DeploymentsNamespace)
-		if err != nil {
-			r.Log.Error(err, "error while validating policy-server imagePullSecret")
-		}
 	}
 
 	policyServerDeployment := &appsv1.Deployment{
@@ -168,6 +160,8 @@ func (r *PolicyServerReconciler) updatePolicyServerDeployment(policyServer *poli
 				SecurityContext:    podSecurityContext,
 				Containers:         []corev1.Container{admissionContainer},
 				ServiceAccountName: policyServer.Spec.ServiceAccountName,
+				Tolerations:        policyServer.Spec.Tolerations,
+				Affinity:           &policyServer.Spec.Affinity,
 				Volumes: []corev1.Volume{
 					{
 						Name: policyStoreVolume,
@@ -294,10 +288,6 @@ func (r *PolicyServerReconciler) adaptDeploymentSettingsForPolicyServer(policySe
 				},
 			},
 		)
-	}
-
-	if emptyAffinity := (corev1.Affinity{}); policyServer.Spec.Affinity != emptyAffinity {
-		policyServerDeployment.Spec.Template.Spec.Affinity = &policyServer.Spec.Affinity
 	}
 }
 

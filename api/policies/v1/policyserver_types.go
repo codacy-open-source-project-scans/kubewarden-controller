@@ -113,6 +113,11 @@ type PolicyServerSpec struct {
 	// otherwise to an implementation-defined value
 	// +optional
 	Requests corev1.ResourceList `json:"requests,omitempty"`
+
+	// Tolerations describes the policy server pod's tolerations. It can be
+	// user to ensure that the policy server pod is not scheduled onto a
+	// node with a taint.
+	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
 }
 
 type ReconciliationTransitionReason string
@@ -127,12 +132,12 @@ const (
 type PolicyServerConditionType string
 
 const (
-	// PolicyServerCASecretReconciled represents the condition of the
+	// PolicyServerCertSecretReconciled represents the condition of the
 	// Policy Server Secret reconciliation
-	PolicyServerCASecretReconciled PolicyServerConditionType = "CASecretReconciled"
-	// PolicyServerCARootSecretReconciled represents the condition of the
+	PolicyServerCertSecretReconciled PolicyServerConditionType = "CertSecretReconciled"
+	// CARootSecretReconciled represents the condition of the
 	// Policy Server CA Root Secret reconciliation
-	PolicyServerCARootSecretReconciled PolicyServerConditionType = "CARootSecretReconciled"
+	CARootSecretReconciled PolicyServerConditionType = "CARootSecretReconciled"
 	// PolicyServerConfigMapReconciled represents the condition of the
 	// Policy Server ConfigMap reconciliation
 	PolicyServerConfigMapReconciled PolicyServerConditionType = "ConfigMapReconciled"
