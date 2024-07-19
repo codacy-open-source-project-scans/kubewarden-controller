@@ -1,12 +1,12 @@
 package constants
 
-// DefaultPolicyServer is set to a non empty value if policies that
-// are missing a policy server should be defaulted to this one
-// before being persisted.
-var DefaultPolicyServer string
+import "time"
 
 const (
-	// PolicyServer CA Secret
+	// DefaultPolicyServer is the default policy server name to be used when
+	// policies does not have a policy server name defined.
+	DefaultPolicyServer = "default"
+	// PolicyServer CA Secret.
 	PolicyServerTLSCert                  = "policy-server-cert"
 	PolicyServerTLSKey                   = "policy-server-key"
 	PolicyServerCARootSecretName         = "policy-server-root-ca"
@@ -14,7 +14,7 @@ const (
 	PolicyServerCARootCACert             = "policy-server-root-ca-cert"
 	PolicyServerCARootPrivateKeyCertName = "policy-server-root-ca-privatekey-cert"
 
-	// PolicyServer Deployment
+	// PolicyServer Deployment.
 	PolicyServerEnableMetricsEnvVar                 = "KUBEWARDEN_ENABLE_METRICS"
 	PolicyServerDeploymentConfigVersionAnnotation   = "kubewarden/config-version"
 	PolicyServerDeploymentPodSpecConfigVersionLabel = "kubewarden/config-version"
@@ -24,39 +24,47 @@ const (
 	PolicyServerReadinessProbe                      = "/readiness"
 	PolicyServerLogFmtEnvVar                        = "KUBEWARDEN_LOG_FMT"
 
-	// PolicyServer ConfigMap
+	// PolicyServer ConfigMap.
 	PolicyServerConfigPoliciesEntry         = "policies.yml"
 	PolicyServerDeploymentRestartAnnotation = "kubectl.kubernetes.io/restartedAt"
 	PolicyServerConfigSourcesEntry          = "sources.yml"
 	PolicyServerSourcesConfigContainerPath  = "/sources"
 
-	// PolicyServer VerificationSecret
+	// PolicyServer VerificationSecret.
 	PolicyServerVerificationConfigEntry         = "verification-config"
 	PolicyServerVerificationConfigContainerPath = "/verification"
 
-	// Label
+	// Label.
 	AppLabelKey          = "app"
 	PolicyServerLabelKey = "kubewarden/policy-server"
 
-	// Index
+	// Index.
 	PolicyServerIndexKey = ".spec.policyServer"
 
-	// Finalizers
+	// Finalizers.
 	KubewardenFinalizerPre114 = "kubewarden"
 	KubewardenFinalizer       = "kubewarden.io/finalizer"
 
-	// Kubernetes
+	// Kubernetes.
 	KubernetesRevisionAnnotation = "deployment.kubernetes.io/revision"
 
-	// OPTEL
+	// OPTEL.
 	OptelInjectAnnotation = "sidecar.opentelemetry.io/inject"
 
-	// Webhook Configurations
+	// Webhook Configurations.
 	WebhookConfigurationPolicyScopeLabelKey          = "kubewardenPolicyScope"
 	WebhookConfigurationPolicyNameAnnotationKey      = "kubewardenPolicyName"
 	WebhookConfigurationPolicyNamespaceAnnotationKey = "kubewardenPolicyNamespace"
 
-	// Scope
+	// Scope.
 	NamespacePolicyScope = "namespace"
 	ClusterPolicyScope   = "cluster"
+
+	// Duration to be used when a policy should be reconciliation should be
+	/// requeued.
+	TimeToRequeuePolicyReconciliation = 2 * time.Second
+	MetricsShutdownTimeout            = 5 * time.Second
+
+	// Certs.
+	CertExpirationYears = 10
 )
