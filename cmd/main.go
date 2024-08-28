@@ -21,6 +21,7 @@ import (
 	"errors"
 	"flag"
 	"os"
+	"strings"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -71,6 +72,7 @@ func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
 	var deploymentsNamespace string
+	var webhookServiceName string
 	var alwaysAcceptAdmissionReviewsOnDeploymentsNamespace bool
 	var probeAddr string
 	var enableMetrics bool
@@ -90,6 +92,10 @@ func main() {
 		"deployments-namespace",
 		"",
 		"The namespace where the kubewarden resources will be created.")
+	flag.StringVar(&webhookServiceName,
+		"webhook-service-name",
+		"kubewarden-controller-webhook-service",
+		"The name of the service that will be used to expose controller webhooks.")
 	flag.BoolVar(&alwaysAcceptAdmissionReviewsOnDeploymentsNamespace,
 		"always-accept-admission-reviews-on-deployments-namespace",
 		false,
@@ -137,7 +143,7 @@ func main() {
 		return
 	}
 
-	if err = setupReconcilers(mgr, deploymentsNamespace, enableMetrics, enableTracing, alwaysAcceptAdmissionReviewsOnDeploymentsNamespace, featureGateAdmissionWebhookMatchConditions); err != nil {
+	if err = setupReconcilers(mgr, deploymentsNamespace, webhookServiceName, enableMetrics, enableTracing, alwaysAcceptAdmissionReviewsOnDeploymentsNamespace, featureGateAdmissionWebhookMatchConditions); err != nil {
 		setupLog.Error(err, "unable to create controllers")
 		retcode = 1
 		return
@@ -225,7 +231,7 @@ func setupProbes(mgr ctrl.Manager) error {
 	return nil
 }
 
-func setupReconcilers(mgr ctrl.Manager, deploymentsNamespace string, enableMetrics, enableTracing, alwaysAcceptAdmissionReviewsOnDeploymentsNamespace bool, featureGateAdmissionWebhookMatchConditions bool) error {
+func setupReconcilers(mgr ctrl.Manager, deploymentsNamespace, webhookServiceName string, enableMetrics, enableTracing, alwaysAcceptAdmissionReviewsOnDeploymentsNamespace, featureGateAdmissionWebhookMatchConditions bool) error {
 	if err := (&controller.PolicyServerReconciler{
 		Client:               mgr.GetClient(),
 		Scheme:               mgr.GetScheme(),
@@ -257,6 +263,39 @@ func setupReconcilers(mgr ctrl.Manager, deploymentsNamespace string, enableMetri
 	}).SetupWithManager(mgr); err != nil {
 		return errors.Join(errors.New("unable to create ClusterAdmissionPolicy controller"), err)
 	}
+
+	if err := (&controller.CertReconciler{
+		Client:                      mgr.GetClient(),
+		Log:                         ctrl.Log.WithName("cert-recociler"),
+		DeploymentsNamespace:        deploymentsNamespace,
+		WebhookServiceName:          webhookServiceName,
+		CARootSecretName:            constants.CARootSecretName,
+		WebhookServerCertSecretName: constants.WebhookServerCertSecretName,
+	}).SetupWithManager(mgr); err != nil {
+		return errors.Join(errors.New("unable to create Cert controller"), err)
+	}
+
+	if isPolicyGroupEnabled() {
+		if err := (&controller.AdmissionPolicyGroupReconciler{
+			Client:               mgr.GetClient(),
+			Scheme:               mgr.GetScheme(),
+			Log:                  ctrl.Log.WithName("admission-policy-group-reconciler"),
+			DeploymentsNamespace: deploymentsNamespace,
+			FeatureGateAdmissionWebhookMatchConditions: featureGateAdmissionWebhookMatchConditions,
+		}).SetupWithManager(mgr); err != nil {
+			return errors.Join(errors.New("unable to create AdmissionPolicyGroup controller"), err)
+		}
+
+		if err := (&controller.ClusterAdmissionPolicyGroupReconciler{
+			Client:               mgr.GetClient(),
+			Scheme:               mgr.GetScheme(),
+			Log:                  ctrl.Log.WithName("cluster-admission-policy-group-reconciler"),
+			DeploymentsNamespace: deploymentsNamespace,
+			FeatureGateAdmissionWebhookMatchConditions: featureGateAdmissionWebhookMatchConditions,
+		}).SetupWithManager(mgr); err != nil {
+			return errors.Join(errors.New("unable to create ClusterAdmissionPolicyGroup controller"), err)
+		}
+	}
 	return nil
 }
 
@@ -270,5 +309,18 @@ func setupWebhooks(mgr ctrl.Manager, deploymentsNamespace string) error {
 	if err := (&policiesv1.AdmissionPolicy{}).SetupWebhookWithManager(mgr); err != nil {
 		return errors.Join(errors.New("unable to create webhook for admission policies"), err)
 	}
+	if isPolicyGroupEnabled() {
+		if err := (&policiesv1.AdmissionPolicyGroup{}).SetupWebhookWithManager(mgr); err != nil {
+			return errors.Join(errors.New("unable to create webhook for admission policies groups"), err)
+		}
+		if err := (&policiesv1.ClusterAdmissionPolicyGroup{}).SetupWebhookWithManager(mgr); err != nil {
+			return errors.Join(errors.New("unable to create webhook for cluster admission policies groups"), err)
+		}
+	}
 	return nil
+}
+
+func isPolicyGroupEnabled() bool {
+	envVarValue := strings.ToLower(os.Getenv(constants.EnablePolicyGroupsFlag))
+	return envVarValue == "true" || envVarValue == "1"
 }

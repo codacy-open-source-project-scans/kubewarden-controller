@@ -9,10 +9,6 @@ kubectl_cmd = "kubectl"
 if str(local("command -v " + kubectl_cmd + " || true", quiet = True)) == "":
     fail("Required command '" + kubectl_cmd + "' not found in PATH")
 
-# Install cert manager
-load('ext://cert_manager', 'deploy_cert_manager')
-deploy_cert_manager()
-
 # Create the kubewarden namespace
 # This is required since the helm() function doesn't support the create_namespace flag
 load('ext://namespace', 'namespace_create')
@@ -43,6 +39,23 @@ for role in roles:
 if len(roles_rules_mapping["ClusterRole"]) == 0 or len(roles_rules_mapping["Role"]) == 0:
     fail("Failed to load cluster and namespace roles")
 
+# Get the webhook configuration with the latest values generated in the 
+# controller repository. 
+mutating_webhooks = []
+validating_webhooks = []
+webhooks_config = decode_yaml_stream(kustomize('config/webhook'))
+for webhook_config in webhooks_config:
+ if webhook_config.get('kind') == 'MutatingWebhookConfiguration':
+	 mutating_webhooks = webhook_config.get('webhooks')
+	 for i in range(len(mutating_webhooks)):
+	     mutating_webhooks[i]["clientConfig"]["service"]["name"] = "kubewarden-controller-webhook-service"
+	     mutating_webhooks[i]["clientConfig"]["service"]["namespace"] = "kubewarden"
+ if webhook_config.get('kind') == 'ValidatingWebhookConfiguration':
+	 validating_webhooks = webhook_config.get('webhooks')
+	 for i in range(len(validating_webhooks)):
+	     validating_webhooks[i]["clientConfig"]["service"]["name"] = "kubewarden-controller-webhook-service"
+	     validating_webhooks[i]["clientConfig"]["service"]["namespace"] = "kubewarden"
+
 
 # Install kubewarden-controller helm chart
 install = helm(
@@ -60,6 +73,10 @@ for o in objects:
         o['spec']['template']['spec']['securityContext']['runAsNonRoot'] = False
         # Disable the leader election to speed up the startup time.
         o['spec']['template']['spec']['containers'][0]['args'].remove('--leader-elect')
+	# Enable policy groups feature
+	envvars = o['spec']['template']['spec']['containers'][0].get('env', [])
+	envvars.append({'name': 'KUBEWARDEN_ENABLE_POLICY_GROUPS', 'value': 'true'})
+	o['spec']['template']['spec']['containers'][0]['env']  = envvars
 
     # Update the cluster and namespace roles used by the controller. This ensures
     # that always we have the latest roles applied to the cluster.
@@ -69,6 +86,13 @@ for o in objects:
 	o['rules'] = roles_rules_mapping["Role"]["manager-role"]
     if o.get('kind') == 'Role' and o.get('metadata').get('name') == 'kubewarden-controller-leader-election-role':
 	o['rules'] = roles_rules_mapping["Role"]["leader-election-role"]
+
+    # Update the webhook configuration with the latest values generated in the 
+    # controller repository. This useful when adding/updating webhooks.
+    if o.get('kind') == 'MutatingWebhookConfiguration':
+	o['webhooks'] = mutating_webhooks
+    if o.get('kind') == 'ValidatingWebhookConfiguration':
+	o['webhooks'] = validating_webhooks
 
 updated_install = encode_yaml_stream(objects)
 k8s_yaml(updated_install)
