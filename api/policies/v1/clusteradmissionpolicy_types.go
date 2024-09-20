@@ -156,22 +156,6 @@ func (r *ClusterAdmissionPolicy) GetStatus() *PolicyStatus {
 	return &r.Status
 }
 
-func (r *ClusterAdmissionPolicy) GetPolicyGroupMembers() PolicyGroupMembers {
-	return nil
-}
-
-func (r *ClusterAdmissionPolicy) IsPolicyGroup() bool {
-	return false
-}
-
-func (r *ClusterAdmissionPolicy) GetExpression() string {
-	return ""
-}
-
-func (r *ClusterAdmissionPolicy) GetMessage() string {
-	return ""
-}
-
 func (r *ClusterAdmissionPolicy) CopyInto(policy *Policy) {
 	*policy = r.DeepCopy()
 }
@@ -196,24 +180,7 @@ func (r *ClusterAdmissionPolicy) GetMatchConditions() []admissionregistrationv1.
 	return r.Spec.MatchConditions
 }
 
-func (r *ClusterAdmissionPolicy) GetUpdatedNamespaceSelector(deploymentNamespace string) *metav1.LabelSelector {
-	// exclude namespace where kubewarden was deployed
-	if r.Spec.NamespaceSelector != nil {
-		r.Spec.NamespaceSelector.MatchExpressions = append(r.Spec.NamespaceSelector.MatchExpressions, metav1.LabelSelectorRequirement{
-			Key:      "kubernetes.io/metadata.name",
-			Operator: "NotIn",
-			Values:   []string{deploymentNamespace},
-		})
-	} else {
-		r.Spec.NamespaceSelector = &metav1.LabelSelector{
-			MatchExpressions: []metav1.LabelSelectorRequirement{{
-				Key:      "kubernetes.io/metadata.name",
-				Operator: "NotIn",
-				Values:   []string{deploymentNamespace},
-			}},
-		}
-	}
-
+func (r *ClusterAdmissionPolicy) GetNamespaceSelector() *metav1.LabelSelector {
 	return r.Spec.NamespaceSelector
 }
 

@@ -152,10 +152,6 @@ func (r *ClusterAdmissionPolicyGroup) GetPolicyGroupMembers() PolicyGroupMembers
 	return r.Spec.Policies
 }
 
-func (r *ClusterAdmissionPolicyGroup) IsPolicyGroup() bool {
-	return true
-}
-
 func (r *ClusterAdmissionPolicyGroup) GetExpression() string {
 	return r.Spec.Expression
 }
@@ -188,24 +184,7 @@ func (r *ClusterAdmissionPolicyGroup) GetMatchConditions() []admissionregistrati
 	return r.Spec.MatchConditions
 }
 
-func (r *ClusterAdmissionPolicyGroup) GetUpdatedNamespaceSelector(deploymentNamespace string) *metav1.LabelSelector {
-	// exclude namespace where kubewarden was deployed
-	if r.Spec.NamespaceSelector != nil {
-		r.Spec.NamespaceSelector.MatchExpressions = append(r.Spec.NamespaceSelector.MatchExpressions, metav1.LabelSelectorRequirement{
-			Key:      "kubernetes.io/metadata.name",
-			Operator: "NotIn",
-			Values:   []string{deploymentNamespace},
-		})
-	} else {
-		r.Spec.NamespaceSelector = &metav1.LabelSelector{
-			MatchExpressions: []metav1.LabelSelectorRequirement{{
-				Key:      "kubernetes.io/metadata.name",
-				Operator: "NotIn",
-				Values:   []string{deploymentNamespace},
-			}},
-		}
-	}
-
+func (r *ClusterAdmissionPolicyGroup) GetNamespaceSelector() *metav1.LabelSelector {
 	return r.Spec.NamespaceSelector
 }
 
@@ -226,7 +205,7 @@ func (r *ClusterAdmissionPolicyGroup) GetPolicyServer() string {
 }
 
 func (r *ClusterAdmissionPolicyGroup) GetUniqueName() string {
-	return "clusterwide-" + r.Name
+	return "clusterwide-group-" + r.Name
 }
 
 func (r *ClusterAdmissionPolicyGroup) GetContextAwareResources() []ContextAwareResource {
