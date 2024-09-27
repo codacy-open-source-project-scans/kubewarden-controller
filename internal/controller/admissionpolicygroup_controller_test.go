@@ -24,6 +24,7 @@ import (
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	policiesv1 "github.com/kubewarden/kubewarden-controller/api/policies/v1"
@@ -83,6 +84,7 @@ var _ = Describe("AdmissionPolicyGroup controller", Label("real-cluster"), func(
 
 				Expect(validatingWebhookConfiguration.Labels[constants.PartOfLabelKey]).To(Equal(constants.PartOfLabelValue))
 				Expect(validatingWebhookConfiguration.Labels[constants.WebhookConfigurationPolicyScopeLabelKey]).To(Equal(constants.NamespacePolicyScope))
+				Expect(validatingWebhookConfiguration.Annotations[constants.WebhookConfigurationPolicyGroupAnnotationKey]).To(Equal(constants.True))
 				Expect(validatingWebhookConfiguration.Annotations[constants.WebhookConfigurationPolicyNameAnnotationKey]).To(Equal(policyName))
 				Expect(validatingWebhookConfiguration.Annotations[constants.WebhookConfigurationPolicyNamespaceAnnotationKey]).To(Equal(policyNamespace))
 				Expect(validatingWebhookConfiguration.Webhooks).To(HaveLen(1))
@@ -113,6 +115,7 @@ var _ = Describe("AdmissionPolicyGroup controller", Label("real-cluster"), func(
 			By("changing the ValidatingWebhookConfiguration")
 			delete(validatingWebhookConfiguration.Labels, constants.PartOfLabelKey)
 			validatingWebhookConfiguration.Labels[constants.WebhookConfigurationPolicyScopeLabelKey] = newName("scope")
+			validatingWebhookConfiguration.Annotations[constants.WebhookConfigurationPolicyGroupAnnotationKey] = "false"
 			delete(validatingWebhookConfiguration.Annotations, constants.WebhookConfigurationPolicyNameAnnotationKey)
 			validatingWebhookConfiguration.Annotations[constants.WebhookConfigurationPolicyNamespaceAnnotationKey] = newName("namespace")
 			validatingWebhookConfiguration.Webhooks[0].ClientConfig.Service.Name = newName("service")
@@ -153,6 +156,20 @@ var _ = Describe("AdmissionPolicyGroup controller", Label("real-cluster"), func(
 					HaveField("Webhooks", Equal(originalValidatingWebhookConfiguration.Webhooks)),
 				),
 			)
+		})
+
+		It("should delete the ValidatingWebhookConfiguration when the AdmissionPolicyGroup is deleted", func() {
+			By("deleting the AdmissionPolicyGroup")
+			Expect(
+				k8sClient.Delete(ctx, policy),
+			).To(Succeed())
+
+			By("waiting for the ValidatingWebhookConfiguration to be deleted")
+			Eventually(func(g Gomega) {
+				_, err := getTestValidatingWebhookConfiguration(ctx, policy.GetUniqueName())
+
+				g.Expect(apierrors.IsNotFound(err)).To(BeTrue())
+			}, timeout, pollInterval).Should(Succeed())
 		})
 	})
 
